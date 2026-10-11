@@ -48,7 +48,24 @@ jobs:
           choco install nsis -y --no-progress
           & "C:\Program Files (x86)\NSIS\makensis.exe" /V2 packaging/windows/installer.nsi
 
-      - name: Firmar los ejecutables (si hay certificado)
+      - name: Firmar con Azure Trusted Signing (firma oficial, si hay secretos)
+        if: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' }}
+        uses: Azure/trustedsigning-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_PROFILE }}
+          files-folder: ${{ github.workspace }}/dist
+          files-folder-filter: '*.exe'
+          file-digest: SHA256
+          signing-proxy: 'true'
+          create-source-file: false
+
+      - name: Firmar autofirmada (si NO está configurada la firma Azure)
+        if: ${{ secrets.AZURE_CLIENT_ID == '' }}
         shell: pwsh
         env:
           PFX_B64: ${{ secrets.CODESIGN_PFX_BASE64 }}

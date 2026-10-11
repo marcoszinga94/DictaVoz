@@ -9,7 +9,7 @@ whisper-cli.exe (se empaqueta junto al .exe).
 """
 import os
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 # Carpeta raíz del proyecto (donde está el paquete dictavoz/).
 PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
@@ -17,6 +17,10 @@ SCRIPT = os.path.join(SPECPATH, "dictavoz_win.py")
 ICON = os.path.join(PROJECT_ROOT, "icons", "dictavoz.ico")
 
 WHISPER_DIR = os.environ.get("WHISPER_DIR", "")
+
+# sounddevice necesita su PortAudio empaquetado o no detecta micrófonos.
+datas = collect_data_files("sounddevice")
+datas += collect_data_files("_sounddevice_data")
 
 binaries = []
 if WHISPER_DIR:
@@ -29,8 +33,8 @@ a = Analysis(
     [SCRIPT],
     pathex=[PROJECT_ROOT, SPECPATH],
     binaries=binaries,
-    datas=[],
-    hiddenimports=collect_submodules("dictavoz"),
+    datas=datas,
+    hiddenimports=collect_submodules("dictavoz") + collect_submodules("sounddevice"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

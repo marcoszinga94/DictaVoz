@@ -235,7 +235,27 @@ class DictaVozWin:
     def __init__(self, root: tk.Tk):
         self.root = root
         root.title("DictaVoz")
-        root.minsize(460, 420)
+        root.geometry("660x700")
+        root.minsize(580, 600)
+        root.configure(bg="#f5f6f8")
+        try:
+            root.tk.call("tk", "scaling", 1.2)
+        except tk.TclError:
+            pass
+
+        # Estilo: tema nativo y tipografía legible (Segoe UI).
+        style = ttk.Style()
+        for theme in ("vista", "clam"):
+            if theme in style.theme_names():
+                style.theme_use(theme)
+                break
+        style.configure(".", font=("Segoe UI", 10))
+        style.configure("Title.TLabel", font=("Segoe UI", 20, "bold"))
+        style.configure("Sub.TLabel", foreground="#666666")
+        style.configure("TButton", padding=6, font=("Segoe UI", 10))
+        style.configure("Accent.TButton", font=("Segoe UI", 11, "bold"), padding=8)
+        style.configure("TCheckbutton", font=("Segoe UI", 10))
+        style.configure("TRadiobutton", font=("Segoe UI", 10))
 
         icon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icons", "dictavoz.ico")
         if os.path.isfile(icon):
@@ -265,6 +285,7 @@ class DictaVozWin:
         self._last_text = ""
         self._downloading = False
         self._cancel_download = threading.Event()
+        self._selected_device_index = None
 
         self.hotkey_combo = self.settings["hotkey"]
         self.hotkey = None
@@ -277,13 +298,16 @@ class DictaVozWin:
         main = ttk.Frame(self.root, padding=12)
         main.pack(fill="both", expand=True)
 
-        ttk.Label(main, text="DictaVoz", font=("", 16, "bold")).pack(anchor="w")
+        ttk.Label(main, text="DictaVoz", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
-            main, text="Habla y el texto aparece donde tengas el cursor (Windows)."
-        ).pack(anchor="w", **pad)
+            main,
+            text="Habla y el texto aparece donde tengas el cursor (Windows).",
+            style="Sub.TLabel",
+        ).pack(anchor="w", padx=10)
 
-        self.toggle_btn = ttk.Button(main, text="Activar dictado", command=self._toggle)
-        self.toggle_btn.pack(fill="x", **pad)
+        self.toggle_btn = ttk.Button(main, text="Activar dictado",
+                                     style="Accent.TButton", command=self._toggle)
+        self.toggle_btn.pack(fill="x", padx=10, pady=(8, 4))
 
         self.status = tk.StringVar(value="Listo.")
         ttk.Label(main, textvariable=self.status, wraplength=440).pack(
@@ -323,7 +347,13 @@ class DictaVozWin:
                      width=6, state="readonly").pack(side="left", padx=4)
         ttk.Label(row3, text="Micrófono:").pack(side="left", padx=(12, 0))
         self.device_var = tk.StringVar()
-        ttk.Combobox(row3, textvariable=self.device_var, width=22).pack(side="left", padx=4)
+        self.device_combo = ttk.Combobox(row3, textvariable=self.device_var, width=18)
+        self.device_combo.pack(side="left", padx=4)
+        self.device_combo.bind(
+            "<<ComboboxSelected>>", lambda _e: self._on_device_selected()
+        )
+        ttk.Button(row3, text="⟳", width=3,
+                   command=self._refresh_devices).pack(side="left")
 
         row4 = ttk.Frame(opts)
         row4.pack(fill="x", pady=2)
@@ -461,13 +491,32 @@ class DictaVozWin:
     def _refresh_devices(self):
         try:
             import sounddevice as sd
-            self._devices = [(d["name"], d["index"]) for d in sd.query_devices() if d["max_input_channels"] > 0]
-        except Exception:  # noqa: BLE001
+            self._devices = [
+                (d["name"], d["index"])
+                for d in sd.query_devices()
+                if d.get("max_input_channels", 0) > 0
+            ]
+        except Exception as exc:  # noqa: BLE001 - PortAudio ausente o sin dispositivos
             self._devices = []
+            self._set_status(f"⚠️ Micrófono no disponible: {exc}")
         names = [n for n, _ in self._devices]
-        self.device_var.set(self.settings["source"] or (names[0] if names else ""))
+        self.device_combo["values"] = names
         if names:
-            self._dev_device = self._devices[0]
+            # Mantiene el dispositivo elegido si sigue existiendo.
+            current = self.device_var.get()
+            if current not in names:
+                self.device_var.set(names[0])
+            self._selected_device_index = self._devices[0][1]
+        else:
+            self.device_var.set("")
+
+    def _on_device_selected(self):
+        idx = self.device_combo.current()
+        if 0 <= idx < len(self._devices):
+            self._selected_device_index = self._devices[idx][1]
+            self._set_status(
+                f"Micrófono: {self._devices[idx][0][:60]}"
+            )
 
     def _open_audio(self, on_chunk):
         import sounddevice as sd
@@ -475,9 +524,7 @@ class DictaVozWin:
         def cb(indata, frames, time_info, status):
             on_chunk(indata.tobytes())
 
-        device = None
-        if self._devices:
-            device = self._devices[0][1]
+        device = getattr(self, "_selected_device_index", None)
         stream = sd.InputStream(samplerate=16000, channels=1, dtype="int16",
                                 blocksize=1024, device=device, callback=cb)
         stream.start()
