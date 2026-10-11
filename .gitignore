@@ -5,6 +5,7 @@ __pycache__/
 
 # Artefactos de compilación / empaquetado
 dist/
+build/
 packaging/cachyos/src/
 packaging/cachyos/pkg/
 packaging/cachyos/*.tar.gz
