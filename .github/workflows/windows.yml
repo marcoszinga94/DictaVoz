@@ -48,6 +48,27 @@ jobs:
           choco install nsis -y --no-progress
           & "C:\Program Files (x86)\NSIS\makensis.exe" /V2 packaging/windows/installer.nsi
 
+      - name: Firmar los ejecutables (si hay certificado)
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+          PFX_PASS: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_B64) {
+            Write-Host 'Sin CODESIGN_PFX_BASE64 → se publica sin firmar.'
+            exit 0
+          }
+          $bytes = [Convert]::FromBase64String($env:PFX_B64)
+          $tmp = Join-Path $env:RUNNER_TEMP 'dictavoz.pfx'
+          [IO.File]::WriteAllBytes($tmp, $bytes)
+          $cert = Import-PfxCertificate -FilePath $tmp -CertStoreLocation Cert:\CurrentUser\My `
+            -Password (ConvertTo-SecureString $env:PFX_PASS -AsPlainText -Force)
+          foreach ($f in @('dist\DictaVoz.exe', 'dist\DictaVoz-Setup.exe')) {
+            $sig = Set-AuthenticodeSignature -FilePath $f -Certificate $cert `
+              -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'
+            Write-Host "Firmado $f -> $($sig.Status)"
+          }
+
       - name: Subir artefactos
         uses: actions/upload-artifact@v4
         with:
