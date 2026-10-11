@@ -47,12 +47,12 @@ Para probar, haz clic en el campo **«Pruébalo aquí»** y usa el atajo.
 
 ### Modos
 
-- **Mantener tecla** (por defecto): mantén pulsada la tecla (Ctrl+Shift+D por
+- **Mantener tecla** (por defecto): mantén pulsada la tecla (Ctrl+Shift+F9 por
   defecto), habla y suelta. Entonces se transcribe y se escribe.
 - **Pulsar para iniciar/parar**: pulsa una vez para empezar a grabar y otra
   vez para parar y escribir.
 
-El atajo por defecto es **Ctrl+Shift+D** y funciona aunque la ventana no tenga
+El atajo por defecto es **Ctrl+Shift+F9** y funciona aunque la ventana no tenga
 el foco. Con el botón **Cambiar** puedes reasignarlo: mantén los modificadores
 y pulsa la tecla (p. ej. **Ctrl+Alt+F9** o **Ctrl+Shift+V**). Desde la terminal
 también se puede fijar con `--hotkey "Ctrl+Alt+F9"`.
@@ -81,7 +81,7 @@ Ajustes en `~/.config/dictavoz/config.json`: `vad_min_silence_ms`,
 ## Opciones de línea de comandos
 
 ```bash
-./run.sh --hotkey "Ctrl+Shift+D" --mode hold  # atajo y modo
+./run.sh --hotkey "Ctrl+Shift+F9" --mode hold  # atajo y modo
 ./run.sh --language es                 # es | en | auto | ...
 ./run.sh --source "alsa_input.…"       # micrófono concreto (ver --list-sources)
 ./run.sh --model /ruta/ggml-small.bin  # modelo concreto

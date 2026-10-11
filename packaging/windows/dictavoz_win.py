@@ -6,7 +6,7 @@ descarga de modelos, whisper.cpp, VAD, configuración.
 
 Diferencias con Linux:
   - Escribir: SendInput con Unicode (soporta acentos sin keymap).
-  - Atajo global: RegisterHotKey (Ctrl+Shift+D por defecto).
+  - Atajo global: RegisterHotKey (Ctrl+Shift+F9 por defecto).
   - Audio: sounddevice (WASAPI).
   - STT: whisper-cli.exe (el servidor no se empaqueta en Windows).
 """
@@ -148,7 +148,7 @@ def _key_to_vk(name: str) -> int:
 
 
 def format_combo(text: str) -> str:
-    """''Ctrl+Shift+D'' -> forma canónica ''Ctrl+Shift+D'' (capitalizada)."""
+    """''Ctrl+Shift+F9'' -> forma canónica ''Ctrl+Shift+F9'' (capitalizada)."""
     order = ("alt", "ctrl", "shift", "meta", "super", "win")
     mods, key = [], ""
     for piece in str(text).split("+"):
@@ -168,7 +168,7 @@ def format_combo(text: str) -> str:
 
 
 def parse_combo(text: str) -> tuple[int, int]:
-    """'Ctrl+Shift+D' -> (modflags, vk)."""
+    """'Ctrl+Shift+F9' -> (modflags, vk)."""
     mods, key = 0, ""
     for piece in str(text).split("+"):
         token = piece.strip().lower()
@@ -596,7 +596,7 @@ class DictaVozWin:
             self.state = self.STATE_IDLE
             self._set_status(f"⚠️ No se pudo acceder al micrófono: {exc}")
             return
-        self._set_status("🔴 Grabando… habla ahora (Ctrl+Shift+D para parar).")
+        self._set_status(f"🔴 Grabando… habla ahora ({self.hotkey_combo} para parar).")
         if self.settings["mode"] == "hold":
             self._hold_watch()
 
