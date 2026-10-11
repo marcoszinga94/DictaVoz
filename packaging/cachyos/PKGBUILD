@@ -1,0 +1,61 @@
+# Maintainer: Marcos Zinga <marcoszinga94@gmail.com>
+# Dictado por voz que escribe donde tengas el cursor.
+# Todo local: whisper.cpp + teclado virtual por /dev/uinput (Wayland/X11).
+
+pkgname=dictavoz
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Dictado por voz que escribe en la posición del cursor (whisper.cpp local + teclado virtual /dev/uinput)'
+arch=('x86_64')
+url='https://github.com/marcoszinga94/DictaVoz'
+license=('MIT')
+depends=(
+    'python'
+    'python-gobject'
+    'gtk4'
+    'whisper-cpp'
+    'libpulse'
+    'libxkbcommon'
+)
+makedepends=()
+optdepends=('pipewire: para la captura de audio con PipeWire')
+source=("dictavoz-$pkgver.tar.gz")
+sha256sums=('2a3baed138cc59c35e66ba6a44abd7f32c4def52ab989ea508e628e7a7d3124e')
+
+package() {
+  cd "$srcdir/dictavoz-$pkgver"
+
+  # Copia la aplicación a /usr/share/dictavoz
+  install -dm755 "$pkgdir/usr/share/dictavoz"
+  cp -r dictavoz tools icons "$pkgdir/usr/share/dictavoz/"
+  install -Dm644 README.md "$pkgdir/usr/share/dictavoz/README.md"
+  find "$pkgdir" -name __pycache__ -type d -exec rm -rf {} +
+  find "$pkgdir" -name '*.pyc' -delete
+
+  # Lanzador (pone /usr/share/dictavoz en PYTHONPATH)
+  install -dm755 "$pkgdir/usr/bin"
+  cat > "$pkgdir/usr/bin/dictavoz" <<'EOF'
+#!/usr/bin/env bash
+export PYTHONPATH="/usr/share/dictavoz${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m dictavoz "$@"
+EOF
+  chmod 755 "$pkgdir/usr/bin/dictavoz"
+
+  # Icono (estándar hicolor) y entrada de menú
+  install -Dm644 icons/dictavoz.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/dictavoz.svg"
+  install -Dm644 icons/dictavoz.png \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/dictavoz.png"
+  install -dm755 "$pkgdir/usr/share/applications"
+  cat > "$pkgdir/usr/share/applications/dictavoz.desktop" <<'EOFD'
+[Desktop Entry]
+Type=Application
+Name=DictaVoz
+Comment=Dictado por voz que escribe donde tengas el cursor
+Exec=/usr/bin/dictavoz
+Icon=dictavoz
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=voz;dictado;speech;texto;
+EOFD
+}

@@ -1,0 +1,18 @@
+pkgbase = dictavoz
+	pkgdesc = Dictado por voz que escribe en la posición del cursor (whisper.cpp local + teclado virtual /dev/uinput)
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/marcoszinga94/DictaVoz
+	arch = x86_64
+	license = MIT
+	depends = python
+	depends = python-gobject
+	depends = gtk4
+	depends = whisper-cpp
+	depends = libpulse
+	depends = libxkbcommon
+	optdepends = pipewire: para la captura de audio con PipeWire
+	source = dictavoz-0.1.0.tar.gz
+	sha256sums = 2a3baed138cc59c35e66ba6a44abd7f32c4def52ab989ea508e628e7a7d3124e
+
+pkgname = dictavoz

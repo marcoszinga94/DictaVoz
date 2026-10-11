@@ -1,0 +1,56 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Dependencias
+        run: pip install -r packaging/windows/requirements-win.txt pyinstaller
+
+      - name: Descargar whisper-cli.exe (oficial) para empaquetarlo
+        shell: pwsh
+        run: |
+          $headers = @{ 'User-Agent' = 'DictaVoz' }
+          $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggerganov/whisper.cpp/releases/latest' -Headers $headers
+          $asset = $rel.assets | Where-Object { $_.name -match 'x64.*\.zip$|win64.*\.zip$' } | Select-Object -First 1
+          if (-not $asset) { throw 'No se encontró el binario x64 de whisper.cpp en el último release.' }
+          Write-Host "Usando $($asset.name)"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile whisper.zip
+          Expand-Archive whisper.zip -DestinationPath whisper
+          Copy-Item -Path (Get-ChildItem whisper -Recurse -Filter whisper-cli.exe | Select-Object -First 1).FullName -Destination whisper\whisper-cli.exe -Force
+          "WHISPER_DIR=$env:GITHUB_WORKSPACE\whisper" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Compilar DictaVoz.exe (PyInstaller)
+        env:
+          WHISPER_DIR: ${{ env.WHISPER_DIR }}
+        run: pyinstaller --noconfirm packaging/windows/dictavoz_win.spec
+
+      - name: Construir el instalador (NSIS)
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /V2 packaging/windows/installer.nsi
+
+      - name: Subir artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: DictaVoz
+          path: |
+            dist/DictaVoz.exe
+            dist/DictaVoz-Setup.exe
+          if-no-files-found: error

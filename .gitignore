@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Artefactos de compilación / empaquetado
+dist/
+packaging/cachyos/src/
+packaging/cachyos/pkg/
+packaging/cachyos/*.tar.gz
+packaging/cachyos/*.pkg.tar.zst
+*.pkg.tar.zst
