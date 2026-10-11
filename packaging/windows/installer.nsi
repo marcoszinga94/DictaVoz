@@ -5,7 +5,6 @@
 ; así no hace falta descargar el .cer ni ejecutar scripts aparte.
 
 !include "MUI2.nsh"
-!include "nsExec.nsh"
 
 !define APPNAME "DictaVoz"
 !define APPEXE "DictaVoz.exe"
@@ -35,8 +34,8 @@ Section "Instalar ${APPNAME}"
   ; en el almacén del usuario que instala. Así Windows reconoce la app y
   ; el propio instalador en futuros arranques, sin descargar nada aparte.
   File "DictaVoz.cer"
-  nsExec::ExecToLog 'certutil -addstore -user Root "$INSTDIR\DictaVoz.cer"'
-  nsExec::ExecToLog 'certutil -addstore -user TrustedPublisher "$INSTDIR\DictaVoz.cer"'
+  ExecWait '"$SYSDIR\certutil.exe" -addstore -user Root "$INSTDIR\DictaVoz.cer"'
+  ExecWait '"$SYSDIR\certutil.exe" -addstore -user TrustedPublisher "$INSTDIR\DictaVoz.cer"'
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
