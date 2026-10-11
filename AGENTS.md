@@ -53,9 +53,11 @@ python3 tools/gen_keymap.py --layout es   # regenerar keymap (requiere xkbcli)
   + `installer.nsi`. Define `WHISPER_DIR` para empaquetar `whisper-cli.exe`; sin
   él, el `.exe` no transcribe salvo que `whisper-cli` esté en el PATH.
 - **CI**: solo existe `.github/workflows/windows.yml` (se dispara en push a
-  `main`). `packaging/windows/AZURE_FIRMA.md` describe firma con Azure Trusted
-  Signing, pero el workflow **no** la implementa: solo firma con los secrets
-  `CODESIGN_PFX_BASE64` / `CODESIGN_PFX_PASSWORD` (autofirmada).
+  `main` o al empujar un tag `v*`). Con un tag `v*` además **publica una
+  Release** con `DictaVoz.exe` y `DictaVoz-Setup.exe`; en push a `main` solo
+  sube artefactos. `packaging/windows/AZURE_FIRMA.md` describe firma con Azure
+  Trusted Signing, pero el workflow **no** la implementa: solo firma con los
+  secrets `CODESIGN_PFX_BASE64` / `CODESIGN_PFX_PASSWORD` (autofirmada).
 - Salidas de build en `dist/` (ignorado por git).
 
 ## Notas operativas
