@@ -205,3 +205,5 @@ DictaVoz/
 │   └── keymaps/latam.json     # mapa de teclas generado
 └── tools/gen_keymap.py        # genera mapas para otros layouts
 ```
+
+Desarrollado por **Marcos Zingaretti**. MIT License.

@@ -13,11 +13,11 @@ VSVersionInfo(
   kids=[
     StringFileInfo([
       StringTable('040904B0', [
-        StringStruct('CompanyName', 'Marcos Zinga'),
-        StringStruct('FileDescription', 'DictaVoz: dictado por voz que escribe donde tengas el cursor'),
+        StringStruct('CompanyName', 'Marcos Zingaretti'),
+        StringStruct('FileDescription', 'DictaVoz: dictado por voz que escribe donde tengas el cursor. Desarrollado por Marcos Zingaretti'),
         StringStruct('FileVersion', '0.1.0'),
         StringStruct('InternalName', 'DictaVoz'),
-        StringStruct('LegalCopyright', 'Copyright (c) 2026 Marcos Zinga'),
+        StringStruct('LegalCopyright', 'Copyright (c) 2026 Marcos Zingaretti'),
         StringStruct('OriginalFilename', 'DictaVoz.exe'),
         StringStruct('ProductName', 'DictaVoz'),
         StringStruct('ProductVersion', '0.1.0')

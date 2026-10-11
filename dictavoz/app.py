@@ -480,6 +480,11 @@ class DictaVozApp(Gtk.Application):
         hint.add_css_class("dim-label")
         box.append(hint)
 
+        footer = Gtk.Label(label="Desarrollado por Marcos Zingaretti")
+        footer.add_css_class("dim-label")
+        footer.set_xalign(0)
+        box.append(footer)
+
         self._apply_initial_state()
 
     def _apply_initial_state(self) -> None:

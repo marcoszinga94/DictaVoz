@@ -351,6 +351,9 @@ class DictaVozWin:
         self.transcript = tk.Text(main, height=4, state="disabled", wrap="word")
         self.transcript.pack(fill="both", expand=True, **pad)
 
+        ttk.Label(main, text="Desarrollado por Marcos Zingaretti",
+                  foreground="#888888").pack(anchor="w", pady=(6, 0))
+
         self._refresh_models()
         self._refresh_devices()
         self._refresh_total()
