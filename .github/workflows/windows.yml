@@ -25,13 +25,16 @@ jobs:
         shell: pwsh
         run: |
           $headers = @{ 'User-Agent' = 'DictaVoz' }
-          $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggerganov/whisper.cpp/releases/latest' -Headers $headers
-          $asset = $rel.assets | Where-Object { $_.name -match 'x64.*\.zip$|win64.*\.zip$' } | Select-Object -First 1
-          if (-not $asset) { throw 'No se encontró el binario x64 de whisper.cpp en el último release.' }
-          Write-Host "Usando $($asset.name)"
+          $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggerganov/whisper.cpp/releases?per_page=30' -Headers $headers
+          $rel = $releases | Where-Object { $_.assets.name -contains 'whisper-bin-x64.zip' } | Select-Object -First 1
+          if (-not $rel) { throw 'Sin release con whisper-bin-x64.zip en whisper.cpp' }
+          $asset = $rel.assets | Where-Object { $_.name -eq 'whisper-bin-x64.zip' }
+          Write-Host "Usando $($rel.tag_name) / $($asset.name)"
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile whisper.zip
           Expand-Archive whisper.zip -DestinationPath whisper
-          Copy-Item -Path (Get-ChildItem whisper -Recurse -Filter whisper-cli.exe | Select-Object -First 1).FullName -Destination whisper\whisper-cli.exe -Force
+          $cli = Get-ChildItem whisper -Recurse -Filter whisper-cli.exe | Select-Object -First 1
+          if (-not $cli) { throw 'whisper-cli.exe no está en el zip' }
+          Copy-Item $cli.FullName -Destination whisper\whisper-cli.exe -Force
           "WHISPER_DIR=$env:GITHUB_WORKSPACE\whisper" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Compilar DictaVoz.exe (PyInstaller)
