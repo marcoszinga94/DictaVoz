@@ -6,7 +6,7 @@ descarga de modelos, whisper.cpp, VAD, configuración.
 
 Diferencias con Linux:
   - Escribir: SendInput con Unicode (soporta acentos sin keymap).
-  - Atajo global: RegisterHotKey (Ctrl+Shift+F9 por defecto).
+  - Atajo global: RegisterHotKey (Ctrl+Alt+Y por defecto).
   - Audio: sounddevice (WASAPI).
   - STT: whisper-cli.exe (el servidor no se empaqueta en Windows).
 """
@@ -148,7 +148,7 @@ def _key_to_vk(name: str) -> int:
 
 
 def format_combo(text: str) -> str:
-    """''Ctrl+Shift+F9'' -> forma canónica ''Ctrl+Shift+F9'' (capitalizada)."""
+    """''Ctrl+Alt+Y'' -> forma canónica ''Ctrl+Alt+Y'' (capitalizada)."""
     order = ("alt", "ctrl", "shift", "meta", "super", "win")
     mods, key = [], ""
     for piece in str(text).split("+"):
@@ -168,7 +168,7 @@ def format_combo(text: str) -> str:
 
 
 def parse_combo(text: str) -> tuple[int, int]:
-    """'Ctrl+Shift+F9' -> (modflags, vk)."""
+    """'Ctrl+Alt+Y' -> (modflags, vk)."""
     mods, key = 0, ""
     for piece in str(text).split("+"):
         token = piece.strip().lower()

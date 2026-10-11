@@ -20,7 +20,7 @@ depends=(
 makedepends=()
 optdepends=('pipewire: para la captura de audio con PipeWire')
 source=("dictavoz-$pkgver.tar.gz")
-sha256sums=('d7eb6adedb032000b1c9338bbc47500ebc4707b5898d9deed08a4ff52f1bb5bc')
+sha256sums=('d523f24dda0a86f5ce359af9e25bc49554a373e1214b7f67b701cebce5e9154a')
 
 package() {
   cd "$srcdir/dictavoz-$pkgver"

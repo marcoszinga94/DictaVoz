@@ -12,7 +12,7 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 
 # Valores por defecto. Cualquier clave ausente se rellena con esto.
 DEFAULTS = {
-    "hotkey": "Ctrl+Shift+F9",   # tecla/combinación del atajo global
+    "hotkey": "Ctrl+Alt+Y",   # tecla/combinación del atajo global
     "mode": "hold",          # "hold" (mantener) o "toggle" (pulsar para iniciar/parar)
     "language": "es",        # idioma para whisper ("es", "en", "auto", ...)
     "model": "",             # ruta al modelo ggml; vacío = autodetectar

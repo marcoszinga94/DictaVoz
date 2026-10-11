@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Dictado por voz que escribe donde tengas el cursor (Linux/Wayland).",
     )
     parser.add_argument("--version", action="version", version=f"DictaVoz {__version__}")
-    parser.add_argument("--hotkey", help="tecla o combinación del atajo (p. ej. Ctrl+Shift+F9, F9)")
+    parser.add_argument("--hotkey", help="tecla o combinación del atajo (p. ej. Ctrl+Alt+Y, F9)")
     parser.add_argument("--mode", choices=["hold", "toggle"],
                         help="hold = mantener la tecla; toggle = pulsar para iniciar/parar")
     parser.add_argument("--language", help="idioma para whisper (es, en, auto, ...)")
@@ -160,9 +160,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         parse_hotkey(settings["hotkey"])
     except Exception:  # noqa: BLE001
-        print(f"Aviso: atajo '{settings['hotkey']}' inválido; usando Ctrl+Shift+F9.",
+        print(f"Aviso: atajo '{settings['hotkey']}' inválido; usando Ctrl+Alt+Y.",
               file=sys.stderr)
-        settings["hotkey"] = "Ctrl+Shift+F9"
+        settings["hotkey"] = "Ctrl+Alt+Y"
 
     from .app import DictaVozApp  # importa GTK sólo cuando hace falta
 
