@@ -21,6 +21,8 @@ WHISPER_DIR = os.environ.get("WHISPER_DIR", "")
 # sounddevice necesita su PortAudio empaquetado o no detecta micrófonos.
 datas = collect_data_files("sounddevice")
 datas += collect_data_files("_sounddevice_data")
+# Iconos de la aplicación (ventana y cabecera).
+datas += [(os.path.join(PROJECT_ROOT, "icons"), "icons")]
 
 binaries = []
 if WHISPER_DIR:
