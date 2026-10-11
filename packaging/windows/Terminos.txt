@@ -1,0 +1,37 @@
+﻿TÉRMINOS Y CONDICIONES DE DICTAVOZ
+
+1. ACEPTACIÓN
+Al instalar y utilizar DictaVoz aceptas estos términos. Si no estás de
+acuerdo, cancela la instalación y elimina el programa.
+
+2. LICENCIA
+DictaVoz es software de código abierto bajo la licencia MIT (ver el
+archivo LICENSE del proyecto). Puedes usar, copiar, modificar y
+distribuir el programa libremente, manteniendo el aviso de copyright.
+
+3. PRIVACIDAD
+DictaVoz captura tu voz para transcribirla. El audio se procesa
+ÍNTEGRAMENTE EN LOCAL (whisper.cpp en tu equipo) y NO se envía a
+servidores de terceros. No se guarda audio de forma automática.
+
+4. PERMISOS DEL SISTEMA
+Para escribir el texto en el cursor y detectar el atajo global, el
+programa usa mecanismos del sistema (/dev/uinput y lectura de teclado en
+Linux; APIs de automatización en Windows). Al aceptar estos términos
+autorizas el uso de esos permisos.
+
+5. MODELOS DE VOZ
+Los modelos de reconocimiento se descargan automáticamente desde los
+repositorios públicos de whisper.cpp (Hugging Face) y se almacenan en tu
+equipo. La descarga consume ancho de banda.
+
+6. SIN GARANTÍAS
+El software se proporciona "TAL CUAL", sin garantías de ningún tipo,
+expresas o implícitas. El autor no será responsable de daños directos o
+indirectos derivados de su uso.
+
+7. MODIFICACIONES
+Estos términos pueden actualizarse. La versión vigente estará en el
+repositorio oficial del proyecto.
+
+Desarrollado por Marcos Zingaretti.

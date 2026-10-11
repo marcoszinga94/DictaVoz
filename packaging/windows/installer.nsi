@@ -19,6 +19,9 @@ InstallDirRegKey HKLM "Software\DictaVoz" "InstallDir"
 RequestExecutionLevel admin
 
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_LICENSEPAGE_RADIOBUTTONS
+!define MUI_LICENSEPAGE_TEXT_BOTTOM "Para continuar con la instalación debes aceptar los términos y condiciones."
+!insertmacro MUI_PAGE_LICENSE "Terminos.txt"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
