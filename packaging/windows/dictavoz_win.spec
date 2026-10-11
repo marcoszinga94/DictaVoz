@@ -26,10 +26,15 @@ datas += [(os.path.join(PROJECT_ROOT, "icons"), "icons")]
 
 binaries = []
 if WHISPER_DIR:
-    cli = os.path.join(WHISPER_DIR, "whisper-cli.exe")
-    if os.path.isfile(cli):
-        binaries.append((cli, "whisper"))
-        print("Empaquetando whisper-cli.exe desde", cli)
+    # Se empaqueta TODA la carpeta (whisper-cli.exe + DLLs ggml*.dll), porque
+    # el exe carga ggml.dll/ggml-base.dll/ggml-cpu-*.dll en tiempo de ejecución.
+    copied = 0
+    for name in os.listdir(WHISPER_DIR):
+        src = os.path.join(WHISPER_DIR, name)
+        if os.path.isfile(src):
+            binaries.append((src, "whisper"))
+            copied += 1
+    print(f"Empaquetando {copied} archivos de whisper desde {WHISPER_DIR}")
 
 a = Analysis(
     [SCRIPT],

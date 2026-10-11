@@ -23,18 +23,32 @@ jobs:
 
       - name: Descargar whisper-cli.exe (oficial) para empaquetarlo
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $headers = @{ 'User-Agent' = 'DictaVoz' }
-          $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggerganov/whisper.cpp/releases?per_page=30' -Headers $headers
-          $rel = $releases | Where-Object { $_.assets.name -contains 'whisper-bin-x64.zip' } | Select-Object -First 1
+          if ($env:GH_TOKEN) { $headers['Authorization'] = "Bearer $env:GH_TOKEN" }
+          $api = 'https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=30'
+          $rel = $null
+          for ($i = 1; $i -le 4 -and -not $rel; $i++) {
+            try {
+              $releases = Invoke-RestMethod -Uri $api -Headers $headers -ErrorAction Stop
+              $rel = $releases | Where-Object { $_.assets.name -contains 'whisper-bin-x64.zip' } | Select-Object -First 1
+            } catch {
+              Write-Host "Intento $i falló: $($_.Exception.Message)"
+              Start-Sleep -Seconds (4 * $i)
+            }
+          }
           if (-not $rel) { throw 'Sin release con whisper-bin-x64.zip en whisper.cpp' }
           $asset = $rel.assets | Where-Object { $_.name -eq 'whisper-bin-x64.zip' }
           Write-Host "Usando $($rel.tag_name) / $($asset.name)"
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile whisper.zip
-          Expand-Archive whisper.zip -DestinationPath whisper
-          $cli = Get-ChildItem whisper -Recurse -Filter whisper-cli.exe | Select-Object -First 1
+          Expand-Archive whisper.zip -DestinationPath _whisper_tmp -Force
+          $cli = Get-ChildItem _whisper_tmp -Recurse -Filter whisper-cli.exe | Select-Object -First 1
           if (-not $cli) { throw 'whisper-cli.exe no está en el zip' }
-          Copy-Item $cli.FullName -Destination whisper\whisper-cli.exe -Force
+          # Copia el exe y sus DLLs (ggml*.dll) a la misma carpeta.
+          New-Item -ItemType Directory -Force -Path whisper | Out-Null
+          Copy-Item (Join-Path $cli.DirectoryName '*') whisper -Recurse -Force
           "WHISPER_DIR=$env:GITHUB_WORKSPACE\whisper" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Compilar DictaVoz.exe (PyInstaller)
