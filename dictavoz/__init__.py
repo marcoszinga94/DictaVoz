@@ -5,4 +5,4 @@ tengas el cursor, usando un teclado virtual por /dev/uinput (funciona en
 Wayland y X11) y whisper.cpp local para el reconocimiento de voz.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.7"

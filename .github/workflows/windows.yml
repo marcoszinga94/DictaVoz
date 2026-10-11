@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -106,3 +107,13 @@ jobs:
             dist/DictaVoz.exe
             dist/DictaVoz-Setup.exe
           if-no-files-found: error
+
+      - name: Publicar release (al empujar un tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "dist/DictaVoz.exe" "dist/DictaVoz-Setup.exe" `
+            --title "DictaVoz ${{ github.ref_name }}" --generate-notes
