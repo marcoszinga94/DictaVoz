@@ -60,4 +60,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=ICON,
+    version=os.path.join(SPECPATH, "DictaVoz_version_info.txt"),
 )
