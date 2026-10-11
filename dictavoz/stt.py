@@ -53,6 +53,9 @@ MODEL_PREFERENCE = ["large-v3-turbo", "medium", "small", "base", "tiny"]
 # empaquetado, p. ej. en Windows: DICTAVOZ_WHISPER_CLI=/ruta/whisper-cli.exe).
 WHISPER_CLI = os.environ.get("DICTAVOZ_WHISPER_CLI", "whisper-cli")
 
+# En Windows evita que se abra una consola (cmd) al lanzar whisper-cli.exe/server.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 
 def find_model(explicit: str = "") -> str:
     """Localiza un modelo ggml; devuelve "" si no encuentra ninguno."""
@@ -162,6 +165,7 @@ class Transcriber:
                         ],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
+                        creationflags=_NO_WINDOW,
                     )
                 except OSError:
                     return False
@@ -222,7 +226,14 @@ class Transcriber:
             "-nt", "--no-prints",
             "-otxt", "-of", prefix,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600,
+                                    creationflags=_NO_WINDOW)
+        except FileNotFoundError:
+            raise RuntimeError(
+                f"No se encontró el ejecutable de whisper.cpp ({WHISPER_CLI}). "
+                "Instálalo o define la variable DICTAVOZ_WHISPER_CLI con su ruta."
+            ) from None
         txt_path = prefix + ".txt"
         text = ""
         if os.path.isfile(txt_path):
