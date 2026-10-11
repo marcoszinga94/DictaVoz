@@ -39,18 +39,30 @@ def _resource_path(*parts: str) -> str:
     return os.path.join(base, *parts)
 
 
-_whisper_cli = "whisper-cli"
-if _MEIPASS:
-    for _candidate in (
-        os.path.join(_MEIPASS, "whisper", "whisper-cli.exe"),
-        os.path.join(_MEIPASS, "whisper-cli.exe"),
-    ):
-        if os.path.isfile(_candidate):
-            _whisper_cli = _candidate
-            break
-if sys.platform == "win32":
-    _whisper_cli += ".exe"
-os.environ.setdefault("DICTAVOZ_WHISPER_CLI", _whisper_cli)
+def _find_whisper_cli() -> str:
+    """Localiza whisper-cli.exe: empaquetado, variable de entorno, usuario o PATH."""
+    candidates: list[str] = []
+    if _MEIPASS:
+        candidates += [
+            os.path.join(_MEIPASS, "whisper", "whisper-cli.exe"),
+            os.path.join(_MEIPASS, "whisper-cli.exe"),
+        ]
+    env = os.environ.get("DICTAVOZ_WHISPER_CLI")
+    if env:
+        candidates.append(env)
+    data_home = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    base = os.path.join(data_home, "dictavoz", "whisper")
+    candidates += [
+        os.path.join(base, "whisper-cli.exe"),
+        os.path.join(base, "Release", "whisper-cli.exe"),
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    return "whisper-cli.exe"  # que lo busque en el PATH
+
+
+os.environ["DICTAVOZ_WHISPER_CLI"] = _find_whisper_cli()
 
 # Permite ejecutar este archivo directamente (py packaging/windows/dictavoz_win.py).
 if not _MEIPASS:
@@ -64,6 +76,22 @@ from dictavoz.stt import Transcriber  # noqa: E402
 from dictavoz.vad import UtteranceSplitter  # noqa: E402
 
 TEST_TEXT = "Hola, esto es una prueba de DictaVoz: á é í ó ú ñ ¿qué tal? ¡Adiós!"
+
+# Paletas de color de la interfaz (tema claro y oscuro).
+THEMES = {
+    "light": {
+        "bg": "#f5f6f8", "surface": "#ffffff", "field": "#ffffff",
+        "text": "#1f2937", "muted": "#6b7280", "border": "#d1d5db",
+        "accent": "#2563eb", "accent_hover": "#1d4ed8",
+        "hover": "#e5e7eb", "trough": "#e5e7eb", "transcript": "#ffffff",
+    },
+    "dark": {
+        "bg": "#20222a", "surface": "#2b2e39", "field": "#2b2e39",
+        "text": "#e5e7eb", "muted": "#9ca3af", "border": "#3f4454",
+        "accent": "#3b82f6", "accent_hover": "#2563eb",
+        "hover": "#363a47", "trough": "#363a47", "transcript": "#252832",
+    },
+}
 
 
 def enable_dpi_awareness() -> None:
@@ -100,6 +128,17 @@ _MOD_KEYS = {
 }
 
 
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+    ]
+
+
 class KEYBDINPUT(ctypes.Structure):
     _fields_ = [
         ("wVk", wintypes.WORD),
@@ -110,8 +149,18 @@ class KEYBDINPUT(ctypes.Structure):
     ]
 
 
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", wintypes.DWORD),
+        ("wParamL", wintypes.WORD),
+        ("wParamH", wintypes.WORD),
+    ]
+
+
 class _INPUTUNION(ctypes.Union):
-    _fields_ = [("ki", KEYBDINPUT)]
+    # Debe incluir las tres variantes: SendInput exige sizeof(INPUT) exacto
+    # (40 bytes en x64), no solo el tamaño del teclado.
+    _fields_ = [("mi", MOUSEINPUT), ("ki", KEYBDINPUT), ("hi", HARDWAREINPUT)]
 
 
 class INPUT(ctypes.Structure):
@@ -325,7 +374,6 @@ class DictaVozWin:
     def __init__(self, root: tk.Tk):
         self.root = root
         root.title("DictaVoz")
-        root.minsize(560, 620)
         root.configure(bg="#f5f6f8")
         try:
             icon = _resource_path("icons", "dictavoz.ico")
@@ -333,8 +381,12 @@ class DictaVozWin:
                 root.iconbitmap(icon)
         except tk.TclError:
             pass
-        self._center_window(620, 700)
         self._header_icon = None
+        self._compact = False
+        self._usable_w = 800
+        self._usable_h = 600
+        root.minsize(300, 160)
+        self._center_window(600, 540)
 
         self.settings = cfg.load()
         self.state = self.STATE_IDLE
@@ -357,8 +409,10 @@ class DictaVozWin:
         self.hotkey_combo = self.settings["hotkey"]
         self.hotkey = None
 
+        self._theme = self.settings.get("appearance", "light")
         self._setup_style()
         self._build_ui()
+        self._apply_theme(self._theme)
         self._start_hotkey()
         if self.settings.get("streaming"):
             self._ensure_stream_model_async()
@@ -369,24 +423,135 @@ class DictaVozWin:
             self.root.tk.call("tk", "scaling", self.root.winfo_fpixels("1i") / 72.0)
         except tk.TclError:
             pass
+        # "clam" permite recolorear todo para los modos claro/oscuro.
         style = ttk.Style()
-        for theme in ("vista", "winnative", "clam"):
-            if theme in style.theme_names():
-                style.theme_use(theme)
-                break
-        style.configure(".", font=("Segoe UI", 10))
-        style.configure("Title.TLabel", font=("Segoe UI", 19, "bold"))
-        style.configure("Sub.TLabel", foreground="#6b7280")
-        style.configure("Section.TLabelframe.Label", font=("Segoe UI", 10, "bold"))
-        style.configure("Accent.TButton", font=("Segoe UI", 11, "bold"), padding=7)
-        style.configure("Footer.TLabel", foreground="#9ca3af", font=("Segoe UI", 9))
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+
+    def _apply_theme(self, name: str) -> None:
+        """Aplica el tema claro u oscuro a toda la interfaz."""
+        self._theme = "dark" if name == "dark" else "light"
+        palette = THEMES[self._theme]
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        self.root.configure(bg=palette["bg"])
+
+        style.configure(
+            ".", font=("Segoe UI", 10), background=palette["bg"],
+            foreground=palette["text"], fieldbackground=palette["field"],
+            bordercolor=palette["border"], lightcolor=palette["surface"],
+            darkcolor=palette["surface"], troughcolor=palette["trough"],
+            focuscolor=palette["accent"],
+        )
+        style.configure("TFrame", background=palette["bg"])
+        style.configure("TLabel", background=palette["bg"], foreground=palette["text"])
+        style.configure("Title.TLabel", background=palette["bg"],
+                        foreground=palette["text"], font=("Segoe UI", 19, "bold"))
+        style.configure("CompactTitle.TLabel", background=palette["bg"],
+                        foreground=palette["text"], font=("Segoe UI", 12, "bold"))
+        style.configure("Sub.TLabel", background=palette["bg"], foreground=palette["muted"])
+        style.configure("Footer.TLabel", background=palette["bg"],
+                        foreground=palette["muted"], font=("Segoe UI", 9))
+
+        style.configure("TButton", background=palette["surface"],
+                        foreground=palette["text"], bordercolor=palette["border"],
+                        padding=6)
+        style.map(
+            "TButton",
+            background=[("pressed", palette["hover"]), ("active", palette["hover"]),
+                        ("disabled", palette["bg"])],
+            foreground=[("disabled", palette["muted"])],
+        )
+        style.configure("Accent.TButton", background=palette["accent"],
+                        foreground="#ffffff", font=("Segoe UI", 11, "bold"),
+                        padding=7, borderwidth=0)
+        style.map(
+            "Accent.TButton",
+            background=[("pressed", palette["accent_hover"]),
+                        ("active", palette["accent_hover"]),
+                        ("disabled", palette["muted"])],
+            foreground=[("disabled", "#e5e7eb")],
+        )
+
+        style.configure("TCheckbutton", background=palette["bg"],
+                        foreground=palette["text"], indicatorbackground=palette["field"])
+        style.map("TCheckbutton",
+                  background=[("active", palette["bg"])],
+                  indicatorcolor=[("selected", palette["accent"]),
+                                  ("!selected", palette["field"])])
+        style.configure("TRadiobutton", background=palette["bg"],
+                        foreground=palette["text"])
+        style.map("TRadiobutton",
+                  background=[("active", palette["bg"])],
+                  indicatorcolor=[("selected", palette["accent"]),
+                                  ("!selected", palette["field"])])
+
+        style.configure("TLabelframe", background=palette["bg"],
+                        bordercolor=palette["border"])
+        style.configure("TLabelframe.Label", background=palette["bg"],
+                        foreground=palette["text"], font=("Segoe UI", 10, "bold"))
+
+        style.configure("TEntry", fieldbackground=palette["field"],
+                        foreground=palette["text"], insertcolor=palette["text"],
+                        bordercolor=palette["border"])
+        style.map("TEntry", fieldbackground=[("disabled", palette["bg"])])
+
+        style.configure("TCombobox", fieldbackground=palette["field"],
+                        background=palette["surface"], foreground=palette["text"],
+                        arrowcolor=palette["text"], bordercolor=palette["border"])
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", palette["field"])],
+            foreground=[("readonly", palette["text"])],
+            selectbackground=[("readonly", palette["field"])],
+            selectforeground=[("readonly", palette["text"])],
+        )
+        style.configure("TProgressbar", background=palette["accent"],
+                        troughcolor=palette["trough"], bordercolor=palette["border"],
+                        lightcolor=palette["accent"], darkcolor=palette["accent"])
+
+        # Lista desplegable de los combobox.
+        option = self.root.option_add
+        option("*TCombobox*Listbox.background", palette["field"])
+        option("*TCombobox*Listbox.foreground", palette["text"])
+        option("*TCombobox*Listbox.selectBackground", palette["accent"])
+        option("*TCombobox*Listbox.selectForeground", "#ffffff")
+
+        if hasattr(self, "transcript"):
+            self.transcript.configure(
+                bg=palette["transcript"], fg=palette["text"],
+                insertbackground=palette["text"], selectbackground=palette["accent"],
+                selectforeground="#ffffff", highlightbackground=palette["border"],
+                highlightcolor=palette["accent"],
+            )
+        self._refresh_theme_buttons()
+
+    def _refresh_theme_buttons(self) -> None:
+        label = "☀" if self._theme == "dark" else "🌙"
+        for button in getattr(self, "theme_buttons", []):
+            button.configure(text=label)
+
+    def _toggle_theme(self) -> None:
+        self._apply_theme("light" if self._theme == "dark" else "dark")
+        self.settings["appearance"] = self._theme
+        cfg.save(self.settings)
+        self._set_status(
+            "Modo claro activado." if self._theme == "light" else "Modo oscuro activado."
+        )
 
     def _center_window(self, width: int, height: int) -> None:
+        """Coloca la ventana centrada y nunca más alta que la pantalla disponible."""
         self.root.update_idletasks()
         screen_w = self.root.winfo_screenwidth()
         screen_h = self.root.winfo_screenheight()
-        width = min(width, screen_w - 40)
-        height = min(height, screen_h - 80)
+        self._usable_w = max(300, screen_w - 20)
+        self._usable_h = max(200, screen_h - 80)  # deja sitio a la barra de tareas
+        self.root.maxsize(self._usable_w, self._usable_h)
+        width = min(width, self._usable_w)
+        height = min(height, self._usable_h)
         x = max(0, (screen_w - width) // 2)
         y = max(0, (screen_h - height) // 3)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
@@ -407,11 +572,22 @@ class DictaVozWin:
 
     # ------------------------------------------------------------ UI
     def _build_ui(self) -> None:
-        main = ttk.Frame(self.root, padding=14)
-        main.pack(fill="both", expand=True)
+        self.main = ttk.Frame(self.root, padding=12)
+        self.main.pack(fill="both", expand=True)
+        self._build_full(self.main)
+        self._build_compact(self.main)
+        self._show_full()
+        self._set_status("Listo. Usa el botón o el atajo para dictar.")
+        self._refresh_models()
+        self._refresh_devices()
+        self._refresh_total()
 
-        # Cabecera: icono + título.
-        header = ttk.Frame(main)
+    def _build_full(self, parent: ttk.Frame) -> None:
+        frame = ttk.Frame(parent)
+        self.full_frame = frame
+
+        # Cabecera: icono + título + botón a modo compacto.
+        header = ttk.Frame(frame)
         header.pack(fill="x")
         icon = self._load_header_icon()
         if icon is not None:
@@ -424,22 +600,28 @@ class DictaVozWin:
             text="Habla y el texto aparece donde tengas el cursor.",
             style="Sub.TLabel",
         ).pack(anchor="w")
+        self.theme_buttons = []
+        ttk.Button(header, text="Compacto ▾", width=12,
+                   command=self._show_compact).pack(side="right", anchor="n")
+        theme_button = ttk.Button(header, text="🌙", width=3, command=self._toggle_theme)
+        theme_button.pack(side="right", anchor="n", padx=(0, 6))
+        self.theme_buttons.append(theme_button)
 
         # Botón principal y estado.
         self.toggle_btn = ttk.Button(
-            main, text="Activar dictado", style="Accent.TButton", command=self._toggle
+            frame, text="Activar dictado", style="Accent.TButton", command=self._toggle
         )
-        self.toggle_btn.pack(fill="x", pady=(12, 6))
+        self.toggle_btn.pack(fill="x", pady=(10, 6))
 
         self.status = tk.StringVar(value="Listo.")
         self.status_label = ttk.Label(
-            main, textvariable=self.status, wraplength=560, justify="left"
+            frame, textvariable=self.status, wraplength=560, justify="left"
         )
-        self.status_label.pack(anchor="w", fill="x", pady=(0, 8))
+        self.status_label.pack(anchor="w", fill="x", pady=(0, 6))
 
         # Sección: dictado.
-        dict_frame = ttk.LabelFrame(main, text=" Dictado ", padding=10)
-        dict_frame.pack(fill="x", pady=(0, 8))
+        dict_frame = ttk.LabelFrame(frame, text=" Dictado ", padding=10)
+        dict_frame.pack(fill="x", pady=(0, 6))
         dict_frame.columnconfigure(1, weight=1)
 
         ttk.Label(dict_frame, text="Modo:").grid(row=0, column=0, sticky="w", pady=3)
@@ -488,8 +670,8 @@ class DictaVozWin:
                    command=self._refresh_devices).pack(side="left", padx=(6, 0))
 
         # Sección: modelo de voz.
-        model_frame = ttk.LabelFrame(main, text=" Modelo de voz ", padding=10)
-        model_frame.pack(fill="x", pady=(0, 8))
+        model_frame = ttk.LabelFrame(frame, text=" Modelo de voz ", padding=10)
+        model_frame.pack(fill="x", pady=(0, 6))
         self.model_combo = ttk.Combobox(model_frame, state="readonly", width=44)
         self.model_combo.pack(fill="x")
         self.model_combo.bind("<<ComboboxSelected>>", lambda _e: self._model_selected())
@@ -506,8 +688,8 @@ class DictaVozWin:
                   style="Sub.TLabel").pack(anchor="w", pady=(6, 0))
 
         # Sección: prueba.
-        test_frame = ttk.LabelFrame(main, text=" Pruébalo aquí ", padding=10)
-        test_frame.pack(fill="x", pady=(0, 8))
+        test_frame = ttk.LabelFrame(frame, text=" Pruébalo aquí ", padding=10)
+        test_frame.pack(fill="x", pady=(0, 6))
         self.test_entry = ttk.Entry(test_frame)
         self.test_entry.pack(fill="x")
         self.test_entry.insert(0, "Haz clic aquí y usa el atajo…")
@@ -516,25 +698,72 @@ class DictaVozWin:
                    command=self._test_write).pack(anchor="w", pady=(6, 0))
 
         # Transcripción.
-        ttk.Label(main, text="Última transcripción:", style="Sub.TLabel").pack(anchor="w")
-        self.transcript = tk.Text(main, height=4, state="disabled", wrap="word",
+        ttk.Label(frame, text="Última transcripción:", style="Sub.TLabel").pack(anchor="w")
+        self.transcript = tk.Text(frame, height=3, state="disabled", wrap="word",
                                   relief="solid", borderwidth=1)
         self.transcript.pack(fill="both", expand=True, pady=(2, 6))
 
         ttk.Label(
-            main,
+            frame,
             text=f"Desarrollado por Marcos Zingaretti  ·  v{__version__}",
             style="Footer.TLabel",
         ).pack(anchor="w")
 
-        self._set_status("Listo. Usa el botón o el atajo para dictar.")
-        self._refresh_models()
-        self._refresh_devices()
-        self._refresh_total()
-        main.bind(
+        frame.bind(
             "<Configure>",
             lambda event: self.status_label.configure(wraplength=max(200, event.width - 24)),
         )
+
+    def _build_compact(self, parent: ttk.Frame) -> None:
+        """Versión reducida, tipo compañero de escritorio (siempre visible)."""
+        frame = ttk.Frame(parent)
+        self.compact_frame = frame
+
+        header = ttk.Frame(frame)
+        header.pack(fill="x")
+        ttk.Label(header, text="DictaVoz", style="CompactTitle.TLabel").pack(side="left")
+        ttk.Button(header, text="Completo ⤢", width=12,
+                   command=self._show_full).pack(side="right")
+        theme_button = ttk.Button(header, text="🌙", width=3, command=self._toggle_theme)
+        theme_button.pack(side="right", padx=(0, 6))
+        self.theme_buttons.append(theme_button)
+
+        ttk.Label(frame, textvariable=self.status, wraplength=310,
+                  justify="left").pack(fill="x", pady=(8, 8))
+
+        self.compact_btn = ttk.Button(
+            frame, text="🎙 Dictar", style="Accent.TButton", command=self._toggle
+        )
+        self.compact_btn.pack(fill="x")
+
+        self.compact_hotkey_var = tk.StringVar(
+            value=f"Atajo: {format_combo(self.hotkey_combo)}"
+        )
+        ttk.Label(frame, textvariable=self.compact_hotkey_var,
+                  style="Sub.TLabel").pack(pady=(8, 0))
+
+    def _show_full(self) -> None:
+        self._compact = False
+        if hasattr(self, "compact_frame"):
+            self.compact_frame.pack_forget()
+        self.full_frame.pack(fill="both", expand=True)
+        try:
+            self.root.attributes("-topmost", False)
+        except tk.TclError:
+            pass
+        self.root.minsize(520, 380)
+        self._center_window(600, 540)
+
+    def _show_compact(self) -> None:
+        self._compact = True
+        self.full_frame.pack_forget()
+        self.compact_frame.pack(fill="both", expand=True)
+        try:
+            self.root.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        self.root.minsize(300, 160)
+        self._center_window(360, 178)
 
     def _clear_placeholder(self, _event) -> None:
         if self.test_entry.get() == "Haz clic aquí y usa el atajo…":
@@ -738,10 +967,12 @@ class DictaVozWin:
     def _open_audio(self, on_chunk):
         import sounddevice as sd
 
+        # RawInputStream entrega PCM s16le crudo (no requiere numpy, a diferencia
+        # de InputStream).
         def callback(indata, frames, time_info, status):  # noqa: ARG001
-            on_chunk(indata.tobytes())
+            on_chunk(bytes(indata))
 
-        stream = sd.InputStream(
+        stream = sd.RawInputStream(
             samplerate=16000, channels=1, dtype="int16", blocksize=1024,
             device=self._selected_device_index, callback=callback,
         )
@@ -780,6 +1011,8 @@ class DictaVozWin:
         cfg.save(self.settings)
         if self.hotkey:
             self.hotkey.set_combo(new)
+        if hasattr(self, "compact_hotkey_var"):
+            self.compact_hotkey_var.set(f"Atajo: {new}")
         self._set_status(f"Atajo cambiado a {new}.")
 
     # ---------------------------------------------------- ajustes
@@ -980,9 +1213,11 @@ class DictaVozWin:
         self.transcript.configure(state="disabled")
 
     def _refresh_button(self) -> None:
+        recording = self.state == self.STATE_REC
         self.toggle_btn.configure(
-            text="Detener y escribir" if self.state == self.STATE_REC else "Activar dictado"
+            text="Detener y escribir" if recording else "Activar dictado"
         )
+        self.compact_btn.configure(text="⏹ Detener" if recording else "🎙 Dictar")
 
     def _test_write(self) -> None:
         self.keyboard.type_text(TEST_TEXT, append_space=True)

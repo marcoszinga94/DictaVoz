@@ -26,6 +26,7 @@ DEFAULTS = {
     "streaming_model": "base",   # modelo pequeño y rápido para el dictado continuo
     "vad_min_silence_ms": 650,   # silencio que cierra una frase (dictado continuo)
     "vad_max_utterance_ms": 10000,  # tope por frase (se escribe aunque no haya pausa)
+    "appearance": "light",   # tema de la interfaz en Windows ("light" o "dark")
 }
 
 MODES = ("hold", "toggle")
