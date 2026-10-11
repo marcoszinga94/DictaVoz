@@ -1,8 +1,11 @@
 ; Instalador NSIS de DictaVoz para Windows.
 ; Se ejecuta desde packaging/windows (makensis installer.nsi).
 ; Espera dist/DictaVoz.exe (salida de PyInstaller) en la raíz del proyecto.
+; Incluye el certificado de firma y lo marca como CONFIABLE al instalarse,
+; así no hace falta descargar el .cer ni ejecutar scripts aparte.
 
 !include "MUI2.nsh"
+!include "nsExec.nsh"
 
 !define APPNAME "DictaVoz"
 !define APPEXE "DictaVoz.exe"
@@ -27,6 +30,13 @@ RequestExecutionLevel admin
 Section "Instalar ${APPNAME}"
   SetOutPath "$INSTDIR"
   File "..\..\dist\${APPEXE}"
+
+  ; Copia el certificado de firma y márcalo como CONFIABLE (raíz + editor)
+  ; en el almacén del usuario que instala. Así Windows reconoce la app y
+  ; el propio instalador en futuros arranques, sin descargar nada aparte.
+  File "DictaVoz.cer"
+  nsExec::ExecToLog 'certutil -addstore -user Root "$INSTDIR\DictaVoz.cer"'
+  nsExec::ExecToLog 'certutil -addstore -user TrustedPublisher "$INSTDIR\DictaVoz.cer"'
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
