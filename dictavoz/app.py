@@ -812,7 +812,11 @@ class DictaVozApp(Gtk.Application):
             )
         )
         try:
-            dialog = Gtk.AlertDialog.new("¿Eliminar modelo?")
+            # Nota: Gtk.AlertDialog.new() no existe en PyGObject (constructor
+            # varargs marcado como no introspectable); se construye vacío y se
+            # configura el mensaje con set_message().
+            dialog = Gtk.AlertDialog()
+            dialog.set_message("¿Eliminar modelo?")
             dialog.set_buttons(["Cancelar", "Eliminar"])
             detail = f"Se borrará «{entry['key']}» ({size})."
             if in_use:
