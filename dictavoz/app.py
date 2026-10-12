@@ -359,6 +359,8 @@ class DictaVozApp(Gtk.Application):
             self.capture_button.set_label("Cambiar")
         if self.hotkey_label is not None:
             self.hotkey_label.set_text(f"Atajo: {combo}")
+        if getattr(self, "compact_hotkey_label", None) is not None:
+            self.compact_hotkey_label.set_text(f"Atajo: {combo}")
         self._set_status(f"Atajo cambiado a {combo}.")
         return False
 
@@ -402,15 +404,22 @@ class DictaVozApp(Gtk.Application):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         for side in ("top", "bottom", "start", "end"):
             getattr(box, f"set_margin_{side}")(16)
-        self.window.set_child(box)
 
         title = Gtk.Label(label="DictaVoz")
         title.add_css_class("title-1")
+        title.set_hexpand(True)
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         icon = self._load_app_icon(44)
         if icon is not None:
             header.append(icon)
         header.append(title)
+        compact_button = Gtk.Button(label="Compacto ▾")
+        compact_button.set_valign(Gtk.Align.CENTER)
+        compact_button.set_tooltip_text(
+            "Modo compacto: una ventana pequeña para tener a mano."
+        )
+        compact_button.connect("clicked", lambda *_: self._show_compact())
+        header.append(compact_button)
         box.append(header)
 
         subtitle = Gtk.Label(
@@ -418,6 +427,7 @@ class DictaVozApp(Gtk.Application):
         )
         subtitle.add_css_class("dim-label")
         subtitle.set_xalign(0)
+        subtitle.set_wrap(True)
         box.append(subtitle)
 
         self.toggle_button = Gtk.Button(label="Activar dictado")
@@ -431,31 +441,6 @@ class DictaVozApp(Gtk.Application):
         self.status_label.set_wrap(True)
         box.append(self.status_label)
 
-        grid = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        box.append(grid)
-
-        grid.append(self._row("Modo", self._mode_dropdown()))
-        grid.append(self._row("Idioma", self._language_dropdown()))
-        grid.append(self._row("Micrófono", self._source_dropdown()))
-        grid.append(self._row("Espacio final", self._append_switch()))
-        grid.append(self._row("Escritura continua", self._streaming_switch()))
-        grid.append(self._hotkey_row())
-        grid.append(self._models_section())
-
-        test_label = Gtk.Label(label="Pruébalo aquí:")
-        test_label.set_xalign(0)
-        test_label.add_css_class("dim-label")
-        box.append(test_label)
-
-        self.test_entry = Gtk.Entry()
-        self.test_entry.set_placeholder_text("Haz clic aquí y usa el atajo…")
-        self.test_entry.set_hexpand(True)
-        box.append(self.test_entry)
-
-        test_button = Gtk.Button(label="Escribir texto de prueba")
-        test_button.connect("clicked", self._on_test_write)
-        box.append(test_button)
-
         transcript_label = Gtk.Label(label="Última transcripción:")
         transcript_label.set_xalign(0)
         transcript_label.add_css_class("dim-label")
@@ -463,12 +448,47 @@ class DictaVozApp(Gtk.Application):
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_min_content_height(70)
+        scroll.set_vexpand(True)
         scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.transcript_view = Gtk.TextView()
         self.transcript_view.set_editable(False)
+        self.transcript_view.set_cursor_visible(False)
         self.transcript_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         scroll.set_child(self.transcript_view)
         box.append(scroll)
+
+        # Los ajustes secundarios van plegados para simplificar la ventana.
+        settings = Gtk.Expander(label="Ajustes")
+        settings.set_expanded(False)
+        settings.connect("notify::expanded", self._on_settings_expanded)
+        settings_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        settings_box.set_margin_top(8)
+        settings.set_child(settings_box)
+        box.append(settings)
+
+        grid = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        grid.append(self._row("Modo", self._mode_dropdown()))
+        grid.append(self._row("Idioma", self._language_dropdown()))
+        grid.append(self._row("Micrófono", self._source_dropdown()))
+        grid.append(self._row("Espacio final", self._append_switch()))
+        grid.append(self._row("Escritura continua", self._streaming_switch()))
+        grid.append(self._hotkey_row())
+        grid.append(self._models_section())
+        settings_box.append(grid)
+
+        test_label = Gtk.Label(label="Pruébalo aquí:")
+        test_label.set_xalign(0)
+        test_label.add_css_class("dim-label")
+        settings_box.append(test_label)
+
+        self.test_entry = Gtk.Entry()
+        self.test_entry.set_placeholder_text("Haz clic aquí y usa el atajo…")
+        self.test_entry.set_hexpand(True)
+        settings_box.append(self.test_entry)
+
+        test_button = Gtk.Button(label="Escribir texto de prueba")
+        test_button.connect("clicked", self._on_test_write)
+        settings_box.append(test_button)
 
         hint = Gtk.Label()
         hint.set_markup(
@@ -485,14 +505,107 @@ class DictaVozApp(Gtk.Application):
         footer.set_xalign(0)
         box.append(footer)
 
+        self.window.set_child(box)
         self._apply_initial_state()
 
+    # --------------------- versión compacta (compañero) --------------------- #
+    def _build_compact_window(self) -> None:
+        """Ventana reducida tipo compañero de escritorio.
+
+        Es una ventana propia (no una vista incrustada) para que pueda ser
+        realmente pequeña: un ``Gtk.Stack`` nunca encoge por debajo del tamaño
+        natural de su página más grande.
+        """
+        window = Gtk.Window(application=self, title="DictaVoz")
+        window.set_resizable(False)
+        window.connect("close-request", self._on_close)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(14)
+        window.set_child(box)
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        icon = self._load_app_icon(24)
+        if icon is not None:
+            header.append(icon)
+        title = Gtk.Label(label="DictaVoz")
+        title.add_css_class("title-4")
+        title.set_hexpand(True)
+        header.append(title)
+        expand_button = Gtk.Button(label="Completo ⤢")
+        expand_button.set_tooltip_text("Volver a la ventana de ajustes.")
+        expand_button.connect("clicked", lambda *_: self._show_full())
+        header.append(expand_button)
+        box.append(header)
+
+        self.compact_status_label = Gtk.Label(label="Listo.")
+        self.compact_status_label.set_xalign(0)
+        self.compact_status_label.set_wrap(True)
+        self.compact_status_label.set_max_width_chars(38)
+        box.append(self.compact_status_label)
+
+        self.compact_toggle_button = Gtk.Button(label="🎙 Dictar")
+        self.compact_toggle_button.add_css_class("suggested-action")
+        self.compact_toggle_button.add_css_class("pill")
+        self.compact_toggle_button.set_size_request(-1, 48)
+        self.compact_toggle_button.connect("clicked", lambda *_: self.toggle())
+        box.append(self.compact_toggle_button)
+
+        self.compact_hotkey_label = Gtk.Label(
+            label=f"Atajo: {format_hotkey(self.hotkey_mods, self.hotkey_code)}"
+        )
+        self.compact_hotkey_label.set_xalign(0)
+        self.compact_hotkey_label.set_wrap(True)
+        self.compact_hotkey_label.add_css_class("dim-label")
+        box.append(self.compact_hotkey_label)
+
+        self.compact_window = window
+        self._apply_initial_state()
+
+    def _show_compact(self) -> None:
+        if getattr(self, "compact_window", None) is None:
+            self._build_compact_window()
+        else:
+            self._apply_initial_state()
+        self.window.hide()
+        self.compact_window.present()
+
+    def _show_full(self) -> None:
+        if getattr(self, "compact_window", None) is not None:
+            self.compact_window.hide()
+        self.window.present()
+
+    def _on_settings_expanded(self, expander, _param) -> bool:
+        """GTK4 crece al desplegar Ajustes pero no encoge al plegarlos.
+
+        Guardamos el alto previo al desplegar y lo restauramos al plegar
+        (``set_default_size`` sí redimensiona una ventana ya visible).
+        """
+        if expander.get_expanded():
+            self._collapsed_height = self.window.get_height()
+        elif getattr(self, "_collapsed_height", None):
+            GLib.idle_add(self._restore_collapsed_height)
+        return False
+
+    def _restore_collapsed_height(self) -> bool:
+        height = getattr(self, "_collapsed_height", None)
+        if self.window is None or not height:
+            return False
+        self.window.set_default_size(self.window.get_width(), height)
+        return False
+
     def _apply_initial_state(self) -> None:
+        broken = bool(self.keyboard_error or not self.transcriber.available)
+        for button in (
+            self.toggle_button,
+            getattr(self, "compact_toggle_button", None),
+        ):
+            if button is not None:
+                button.set_sensitive(not broken)
         if self.keyboard_error:
-            self.toggle_button.set_sensitive(False)
             self._set_status(f"⚠️ {self.keyboard_error}")
         elif not self.transcriber.available:
-            self.toggle_button.set_sensitive(False)
             self._set_status(
                 "⚠️ No se encontró ningún modelo de whisper.cpp "
                 "(instala p. ej. whisper.cpp-model-base o descarga un ggml-*.bin)."
@@ -602,12 +715,12 @@ class DictaVozApp(Gtk.Application):
     # ----------------------------- modelos ----------------------------- #
     @staticmethod
     def _model_label(entry: dict) -> str:
+        # Nombre corto (sin la descripción tras «·») para que el desplegable no
+        # ensanche la ventana; la descripción completa va en el tooltip.
+        short = entry["label"].split(" · ")[0]
         if models.is_downloaded(entry):
-            return (
-                f"{entry['label']}  ✓ "
-                f"({models.human_size(models.file_size(entry))})"
-            )
-        return f"{entry['label']}  ·  {models.human_size(entry['bytes'])}"
+            return f"{short}  ✓  ({models.human_size(models.file_size(entry))})"
+        return f"{short}  ·  {models.human_size(entry['bytes'])}"
 
     def _current_model_index(self) -> int:
         entry = models.entry_for_path(self.settings["model"])
@@ -673,6 +786,7 @@ class DictaVozApp(Gtk.Application):
         self.delete_model_button.set_tooltip_text(
             "" if downloaded else "Este modelo no está descargado."
         )
+        self.model_dropdown.set_tooltip_text(entry["label"])
 
     def _refresh_model_dropdown(self, select_file: str | None = None) -> None:
         labels = [self._model_label(entry) for entry in models.MODELS]
@@ -1017,19 +1131,31 @@ class DictaVozApp(Gtk.Application):
     def _set_status(self, text: str) -> bool:
         if self.status_label is not None:
             self.status_label.set_text(text)
+        if getattr(self, "compact_status_label", None) is not None:
+            self.compact_status_label.set_text(text)
         return False
 
     def _refresh_button(self) -> bool:
-        if self.toggle_button is None:
-            return False
-        if self.state == STATE_REC:
-            self.toggle_button.set_label("Detener y escribir")
-            self.toggle_button.remove_css_class("suggested-action")
-            self.toggle_button.add_css_class("destructive-action")
-        else:
-            self.toggle_button.set_label("Activar dictado")
-            self.toggle_button.remove_css_class("destructive-action")
-            self.toggle_button.add_css_class("suggested-action")
+        # Botón de la vista completa.
+        if self.toggle_button is not None:
+            if self.state == STATE_REC:
+                self.toggle_button.set_label("Detener y escribir")
+                self.toggle_button.remove_css_class("suggested-action")
+                self.toggle_button.add_css_class("destructive-action")
+            else:
+                self.toggle_button.set_label("Activar dictado")
+                self.toggle_button.remove_css_class("destructive-action")
+                self.toggle_button.add_css_class("suggested-action")
+        # Botón grande de la vista compacta.
+        if getattr(self, "compact_toggle_button", None) is not None:
+            if self.state == STATE_REC:
+                self.compact_toggle_button.set_label("⏹ Detener")
+                self.compact_toggle_button.remove_css_class("suggested-action")
+                self.compact_toggle_button.add_css_class("destructive-action")
+            else:
+                self.compact_toggle_button.set_label("🎙 Dictar")
+                self.compact_toggle_button.remove_css_class("destructive-action")
+                self.compact_toggle_button.add_css_class("suggested-action")
         return False
 
     def _quit(self) -> bool:
@@ -1037,8 +1163,9 @@ class DictaVozApp(Gtk.Application):
         return False
 
     def _on_close(self, *_args) -> bool:
+        # Cualquiera de las dos ventanas cierra la aplicación completa.
         self._shutdown()
-        self.window = None
+        self.quit()
         return False
 
     def _shutdown(self) -> None:
